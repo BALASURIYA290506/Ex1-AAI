@@ -30,39 +30,39 @@ import networkx as nx
 import pandas as pd
 import matplotlib.pyplot as plt
 from pybbn.graph.dag import Bbn
-from pybbn.graph.dag import Edge,EdgeType
+from pybbn.graph.edge import Edge, EdgeType
 from pybbn.graph.jointree import EvidenceBuilder
 from pybbn.graph.node import BbnNode
 from pybbn.graph.variable import Variable
 from pybbn.pptc.inferencecontroller import InferenceController
 pd.options.display.max_columns=50
 
-df=pd.read_csv('weatherAUS.csv',encoding='utf-8')
-df=df[pd.isnull(df['RainTomorrow'])==False]
-df = df.drop(columns='Date')
+df = pd.read_csv('weatherAUS.csv', encoding='utf-8')
+df = df[pd.isnull(df['RainTomorrow']) == False]
 
-numeric_columns = df.select_dtypes(include=['number']).columns
-df.loc[:, numeric_columns] = df[numeric_columns].fillna(df[numeric_columns].mean())
 
-df['WindGustSpeedCat']=df['WindGustSpeed'].apply(lambda x: '0.<=40'   if x<=40 else '1.40-50' if 40<x<=50 else '2.>50')
-df['Humidity9amCat']=df['Humidity9am'].apply(lambda x: '1.>60' if x>60 else '0.<=60')
-df['Humidity3pmCat']=df['Humidity3pm'].apply(lambda x: '1.>60' if x>60 else '0.<=60')
+num_cols = df.select_dtypes(include='number').columns
+cat_cols = df.select_dtypes(exclude='number').columns
 
-print(df)
+df[num_cols] = df[num_cols].fillna(df[num_cols].mean())
+df[cat_cols] = df[cat_cols].fillna(df[cat_cols].mode().iloc[0])
+
+df['WindGustSpeedCat'] = df['WindGustSpeed'].apply(lambda x: '0.<=40' if x <= 40 else '1.40-50' if 40 < x <= 50 else '2.>50')
+df['Humidity9amCat'] = df['Humidity9am'].apply(lambda x: '1.>60' if x > 60 else '0.<=60')
+df['Humidity3pmCat'] = df['Humidity3pm'].apply(lambda x: '1.>60' if x > 60 else '0.<=60')
+
+print(df.head())
 
 def probs(data, child, parent1=None, parent2=None):
-    if parent1==None:
-        # Calculate probabilities
-        prob=pd.crosstab(data[child], 'Empty', margins=False, normalize='columns').sort_index().to_numpy().reshape(-1).tolist()
-    elif parent1!=None:
-            # Check if child node has 1 parent or 2 parents
-            if parent2==None:
-                # Caclucate probabilities
-                prob=pd.crosstab(data[parent1],data[child], margins=False, normalize='index').sort_index().to_numpy().reshape(-1).tolist()
-            else:
-                # Caclucate probabilities
-                prob=pd.crosstab([data[parent1],data[parent2]],data[child], margins=False, normalize='index').sort_index().to_numpy().reshape(-1).tolist()
-    else: print("Error in Probability Frequency Calculations")
+    if parent1 is None:
+        prob = pd.crosstab(data[child], 'Empty', margins=False, normalize='columns').sort_index().to_numpy().reshape(-1).tolist()
+    elif parent1 is not None:
+        if parent2 is None:
+            prob = pd.crosstab(data[parent1], data[child], margins=False, normalize='index').sort_index().to_numpy().reshape(-1).tolist()
+        else:
+            prob = pd.crosstab([data[parent1], data[parent2]], data[child], margins=False, normalize='index').sort_index().to_numpy().reshape(-1).tolist()
+    else:
+        print("Error in Probability Frequency Calculations")
     return prob
 
 H9am = BbnNode(Variable(0, 'H9am', ['<=60', '>60']), probs(df, child='Humidity9amCat'))
@@ -90,7 +90,8 @@ options = {
     "edgecolors": "blue",
     "edge_color": "green",
     "linewidths": 5,
-    "width": 5,}
+    "width": 5,
+}
 
 n, d = bbn.to_nx_graph()
 nx.draw(n, with_labels=True, labels=d, pos=pos, **options)
@@ -99,16 +100,28 @@ ax = plt.gca()
 ax.margins(0.10)
 plt.axis("off")
 plt.show()
-print(probs(df, child='Humidity9amCat'))
-print(probs(df, child='Humidity3pmCat', parent1='Humidity9amCat'))
-print(probs(df, child='WindGustSpeedCat'))
-print(probs(df, child='RainTomorrow', parent1='Humidity3pmCat', parent2='WindGustSpeedCat'))
+
+print("CPTs: Humidity 9AM ->{}".format(probs(df, child='Humidity9amCat')))
+print("CPTs: Humidity 3PM ->{}".format(probs(df, child='Humidity3pmCat', parent1='Humidity9amCat')))
+print("CPTs: Wind Gust Speed ->{}".format(probs(df, child='WindGustSpeedCat')))
+print("CPTs: Rain Tomorrow ->{}".format(probs(df, child='RainTomorrow', parent1='Humidity3pmCat', parent2='WindGustSpeedCat')))
+
+rain_cpt = pd.crosstab(
+    [df["Humidity3pmCat"], df["WindGustSpeedCat"]],
+    df["RainTomorrow"],
+    normalize="index"
+)
+
+print(rain_cpt.round(4))
 ```
 
 ## Output:
-<img width="1920" height="1200" alt="image" src="https://github.com/user-attachments/assets/c66b0ba3-af43-478e-b541-b82fef281447" />
+<img width="1920" height="1200" alt="image" src="https://github.com/user-attachments/assets/5f692e82-9642-44ba-ba28-b2dc20800e69" />
 
-<img width="1920" height="1200" alt="image" src="https://github.com/user-attachments/assets/1837780f-b5d9-4afc-98f9-a3abe6c29ed1" />
+<img width="1920" height="1200" alt="image" src="https://github.com/user-attachments/assets/7a0c79e7-b2c4-4a5e-a694-02d5dae4caea" />
+<img width="1075" height="192" alt="image" src="https://github.com/user-attachments/assets/e54835ab-db8d-41dd-aa94-00c9f43d7967" />
+<img width="460" height="321" alt="image" src="https://github.com/user-attachments/assets/b8e3753b-2a73-4033-b1e6-f8862f01effb" />
+
 
 ## Result:
    Thus a Bayesian Network is generated using Python
