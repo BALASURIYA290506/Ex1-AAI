@@ -23,7 +23,7 @@ Step 14:Update margins and display the graph using matplotlib.pyplot<br/>
 
 ## Program:
 ```python
-!pip install pybbn
+pip install pybbn
 ```
 ```python
 import networkx as nx
